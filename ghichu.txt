@@ -1,0 +1,126 @@
+3) Lấy danh sách top endpoints (IP)
+tshark -r ~/captures/capture_test.pcap0 -q -z endpoints,ip
+
+
+
+hi bạn chạy lệnh như:
+
+sudo tcpdump -i enp0s3 -s 0 -w capture_test.pcap0
+
+→ tcpdump ghi trực tiếp các gói vào file trong thời gian chạy.
+
+File sẽ chỉ được thêm các gói mới trong quá trình tcpdump đang chạy.
+
+Khi bạn Ctrl+C hoặc lệnh dừng → tcpdump đóng file. Sau đó file không nhận thêm gói nữa.
+
+
+
+
+
+
+
+cd ~/PBL3
+sudo python3 main_gui.py
+slowhttptest -u http://10.10.59.168 -c 1000 -i 5 -r 200 -l 90 
+192.168.1.187
+
+Khi có tấn công:
+
+auto_block.py phát hiện nhiều gói SYN → chặn IP đó bằng iptables.
+
+Ghi thông tin vào /var/log/firewall_alerts.json.
+
+web_dashboard.py đọc file JSON đó → hiển thị lên dashboard như:
+
+
+
+# 1. Khởi động tất cả dịch vụ
+sudo systemctl start firewall-auto-block.service
+sudo systemctl start fail2ban
+sudo systemctl start apache2
+sudo systemctl status firewall-auto-block.service
+sudo systemctl status fail2ban
+
+sudo apt update
+sudo apt install tshark
+#2
+cd /opt/firewall
+sudo python3 main_gui.py
+
+# Theo dõi auto-block logs
+sudo tail -f /var/log/firewall_auto_block.log
+
+# Theo dõi Apache connections real-time
+watch -n 1 "sudo netstat -an | grep :80 | grep ESTABLISHED | wc -l"
+
+# Theo dõi IP bị chặn
+watch -n 1 "sudo iptables -L INPUT -n --line-numbers | grep DROP"
+
+
+# 4. Khởi động Apache web server
+sudo systemctl start apache2
+sudo systemctl status apache2
+
+Mở chặn IP
+sudo iptables -D INPUT -s 10.10.59.168 -j DROP
+172.20.10.3
+
+Statistics → Protocol Hierarchy: xem tỷ lệ các giao thức (TCP/UDP/ICMP…).
+
+Statistics → Endpoints / Conversations: xác định nguồn/tổng bytes, số kết nối từ từng IP. Dễ thấy IP gửi lượng lớn gói.
+
+Statistics → IO Graphs: vẽ throughput theo thời gian — rất hữu dụng để thấy spike (đột biến băng thông).
+
+Statistics → Flow Graph: xem trình tự trao đổi giữa endpoints (bons để phân tích các mẫu kết nối).
+
+Analyze → Expert Information: liệt kê cảnh báo (retransmissions, malformed packets, checksum errors...).
+
+Follow TCP Stream / Follow UDP Stream: xem nội dung một luồng cụ thể.
+
+Display filters để khoanh vùng các loại lưu lượng/triệu chứng (dưới đây có ví dụ).
+
+
+Lệnh bạn hỏi:
+sudo tcpdump -i eth0 host <TARGET_IP> -w capture.pcap
+Giải thích từng phần
+
+sudo
+— chạy lệnh với quyền root. Truyền/ghi gói mạng thường yêu cầu quyền cao (root) trên Linux.
+
+tcpdump
+— chương trình dòng lệnh để bắt (capture) gói mạng.
+
+-i eth0
+— chọn interface mạng để bắt (ở đây là eth0). Trên máy bạn tên interface có thể khác (ví dụ ens33, wlan0, enp3s0). Kiểm tra bằng ip link hoặc ifconfig.
+
+host <TARGET_IP>
+— capture filter (BPF) giới hạn chỉ bắt gói liên quan tới IP đích/đầu (<TARGET_IP>). Thay <TARGET_IP> bằng địa chỉ thực, ví dụ 10.0.0.5. Mệnh đề host = ip.src==IP || ip.dst==IP.
+
+Nếu chỉ muốn nguồn là IP đó: src host 1.2.3.4
+
+Chỉ muốn đích: dst host 1.2.3.4
+
+-w capture.pcap
+— ghi toàn bộ gói thu được vào file capture.pcap ở định dạng pcap (binary). File này mở được bằng Wireshark hoặc đọc bằng tcpdump -r.
+
+Ví dụ thực tế
+
+Bắt tất cả gói tới/đi từ 10.0.0.5, ghi vào file:
+sudo tcpdump -i eth0 host 10.0.0.5 -w capture.pcap
+Bắt chỉ HTTPS (port 443) cho target:
+sudo tcpdump -i eth0 'host 10.0.0.5 and tcp port 443' -w https_target.pcap
+
+
+sudo tcpdump -i eth0 -s 0 -nn 'host 10.0.0.5 and tcp port 443' -w capture_https.pcap
+
+-s 0 → ghi toàn bộ payload (không cắt).
+
+-nn → hiển thị IP/port dạng số, không resolve tên.
+
+'host 10.0.0.5 and tcp port 443' → chỉ bắt gói đi/đến IP target trên port 443.
+
+sudo tcpdump -i eth0 -s 0 -nn 'host 10.0.0.5 and tcp[tcpflags] & tcp-syn != 0 and tcp[tcpflags] & tcp-ack == 0' -w syns.pcap
+
+
+sudo tcpdump -i enp0s3 -s 0 -nn 'host 10.10.59.252 and tcp port 443' -C 100 -W 10 -w capture.pcap
+

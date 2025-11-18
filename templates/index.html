@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firewall Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card { margin-bottom: 20px; }
+        .alert-item { border-left: 4px solid #dc3545; padding-left: 10px; margin-bottom: 10px; }
+        .blocked-ip { background-color: #f8d7da; padding: 5px 10px; border-radius: 4px; margin: 2px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-shield-alt"></i> Firewall Dashboard
+            </span>
+            <span class="navbar-text" id="lastUpdate"></span>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Thống kê -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card text-white bg-primary">
+                    <div class="card-body">
+                        <h5><i class="fas fa-ban"></i> IP Bị Chặn</h5>
+                        <h2 id="totalBlocked">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-9">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-plus-circle"></i> Chặn IP Thủ Công</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="ipToBlock" placeholder="Nhập IP để chặn (ví dụ: 192.168.1.100)">
+                            <button class="btn btn-danger" onclick="blockIp()">Chặn IP</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danh sách IP bị chặn -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-list"></i> IP Đang Bị Chặn</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="blockedIpsList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cảnh báo gần đây -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-bell"></i> Cảnh Báo Gần Đây</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="alertsList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rules iptables -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-code"></i> Iptables Rules</h5>
+                    </div>
+                    <div class="card-body">
+                        <pre id="rulesContent" style="max-height: 400px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function updateDashboard() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    // Cập nhật thống kê
+                    document.getElementById('totalBlocked').textContent = data.total_blocked;
+                    
+                    // Cập nhật IP bị chặn
+                    const blockedList = document.getElementById('blockedIpsList');
+                    blockedList.innerHTML = '';
+                    data.blocked_ips.forEach(ip => {
+                        const ipElement = document.createElement('span');
+                        ipElement.className = 'blocked-ip';
+                        ipElement.innerHTML = `${ip} <button class="btn btn-sm btn-success" onclick="unblockIp('${ip}')">Gỡ chặn</button>`;
+                        blockedList.appendChild(ipElement);
+                    });
+                    
+                    // Cập nhật cảnh báo
+                    const alertsList = document.getElementById('alertsList');
+                    alertsList.innerHTML = '';
+                    data.alerts.forEach(alert => {
+                        const alertElement = document.createElement('div');
+                        alertElement.className = 'alert-item';
+                        const date = new Date(alert.timestamp * 1000).toLocaleString();
+                        alertElement.innerHTML = `<strong>${date}</strong> - IP: ${alert.ip} - ${alert.reason}`;
+                        alertsList.appendChild(alertElement);
+                    });
+                    
+                    // Cập nhật thời gian
+                    document.getElementById('lastUpdate').textContent = 'Cập nhật: ' + new Date().toLocaleTimeString();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        function blockIp() {
+            const ip = document.getElementById('ipToBlock').value;
+            if (!ip) {
+                alert('Vui lòng nhập IP');
+                return;
+            }
+            
+            fetch('/api/block_ip', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip: ip})
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.success) {
+                    document.getElementById('ipToBlock').value = '';
+                    updateDashboard();
+                }
+            });
+        }
+        
+        function unblockIp(ip) {
+            if (confirm(`Bạn có chắc muốn gỡ chặn IP ${ip}?`)) {
+                fetch('/api/unblock_ip', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ip: ip})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        updateDashboard();
+                    }
+                });
+            }
+        }
+        
+        function loadRules() {
+            fetch('/api/rules')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('rulesContent').textContent = data.rules;
+                });
+        }
+        
+        // Cập nhật mỗi 5 giây
+        setInterval(updateDashboard, 5000);
+        
+        // Khởi tạo
+        updateDashboard();
+        loadRules();
+    </script>
+</body>
+</html>
